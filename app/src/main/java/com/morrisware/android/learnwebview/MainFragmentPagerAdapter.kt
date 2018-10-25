@@ -3,6 +3,7 @@ package com.morrisware.android.learnwebview
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.FragmentManager
 import androidx.fragment.app.FragmentStatePagerAdapter
+import androidx.viewpager.widget.PagerAdapter
 
 /**
  * Created by MorrisWare on 2018/10/25.
@@ -25,6 +26,10 @@ class MainFragmentPagerAdapter(
 
     override fun getCount(): Int {
         return datas.size
+    }
+
+    override fun getItemPosition(`object`: Any): Int {
+        return PagerAdapter.POSITION_NONE
     }
 
 }

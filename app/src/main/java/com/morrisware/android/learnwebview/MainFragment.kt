@@ -2,7 +2,6 @@ package com.morrisware.android.learnwebview
 
 import android.animation.Animator
 import android.animation.AnimatorListenerAdapter
-import android.animation.AnimatorSet
 import android.animation.ObjectAnimator
 import android.annotation.SuppressLint
 import android.os.Bundle
@@ -12,10 +11,14 @@ import android.view.ViewGroup
 import android.webkit.*
 import android.widget.EditText
 import androidx.appcompat.app.AlertDialog
+import androidx.databinding.DataBindingUtil
 import androidx.fragment.app.Fragment
-import com.morrisware.android.learnwebview.event.ToggleViewPager
+import com.morrisware.android.learnwebview.R.id.*
+import com.morrisware.android.learnwebview.databinding.MainFragmentBinding
+import com.morrisware.android.learnwebview.event.RefreshItemEvent
+import com.morrisware.android.learnwebview.event.RemoveItemEvent
+import com.morrisware.android.learnwebview.event.ToggleViewPagerEvent
 import io.reactivex.functions.Consumer
-import kotlinx.android.synthetic.main.main_fragment.*
 
 /**
  * Created by MorrisWare on 2018/10/25.
@@ -23,58 +26,61 @@ import kotlinx.android.synthetic.main.main_fragment.*
  */
 class MainFragment : Fragment() {
 
+    lateinit var binding: MainFragmentBinding
+
     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?, savedInstanceState: Bundle?): View? {
-        return inflater.inflate(R.layout.main_fragment, container, false)
+        binding = DataBindingUtil.inflate(
+            inflater,
+            R.layout.main_fragment,
+            container,
+            false
+        )
+        return binding.root
     }
 
     override fun onActivityCreated(savedInstanceState: Bundle?) {
         super.onActivityCreated(savedInstanceState)
         initWebView()
-
-        viewLifecycleOwner.lifecycle.registerEvent(ToggleViewPager::class.java, Consumer {
-            view?.apply {
-                scaleX
-            }
+        viewLifecycleOwner.lifecycle.registerEvent(RefreshItemEvent::class.java, Consumer {
+            binding.btnWindow.text = if (it.isZoom) "关闭" else "窗口"
         })
 
-        btnWindow.setOnClickListener { clickWindow() }
-        webView.loadUrl("http://www.baidu.com")
+        binding.btnWindow.setOnClickListener { clickWindow() }
+
+        binding.webView.loadUrl("http://www.baidu.com")
     }
 
     private fun clickWindow() {
-        if (btnWindow.text == "close") {
-            RxBus.getInstance().post(ToggleViewPager(false))
+        if (binding.btnWindow.text == "关闭") {
+            binding.root.apply {
+                val animator = ObjectAnimator.ofFloat(this, "translationY", 0f, -context.getScreenHeight().toFloat())
+                animator.addListener(object : AnimatorListenerAdapter() {
+                    override fun onAnimationEnd(animation: Animator?) {
+                        super.onAnimationEnd(animation)
+                        RxBus.getInstance().post(RemoveItemEvent(0))
+                    }
+                })
+                animator.duration = 300
+                animator.start()
+            }
         } else {
-            RxBus.getInstance().post(ToggleViewPager(true))
-
-            val scaleX = ObjectAnimator.ofFloat(view, "scaleX", 1f, 0.5f)
-            val scaleY = ObjectAnimator.ofFloat(view, "scaleY", 1f, 0.5f)
-            val animatorSet = AnimatorSet()
-            animatorSet.playTogether(scaleX, scaleY)
-            animatorSet.duration = 300
-            animatorSet.addListener(object : AnimatorListenerAdapter() {
-                override fun onAnimationEnd(animation: Animator?) {
-                    super.onAnimationEnd(animation)
-                    btnWindow.text = "close"
-                }
-            })
-            animatorSet.start()
+            RxBus.getInstance().post(ToggleViewPagerEvent(true))
         }
     }
 
     override fun onResume() {
         super.onResume()
-        webView.onResume()
+        binding.webView.onResume()
     }
 
     override fun onPause() {
         super.onPause()
-        webView.onPause()
+        binding.webView.onPause()
     }
 
     override fun onDestroy() {
         super.onDestroy()
-        webView?.apply {
+        binding.webView?.apply {
             (parent as ViewGroup).removeView(this)
             destroy()
         }
@@ -82,27 +88,33 @@ class MainFragment : Fragment() {
 
     @SuppressLint("SetJavaScriptEnabled")
     private fun initWebView() {
-        webView.settings.apply {
+        binding.webView.settings.apply {
             javaScriptEnabled = true
+            // 设置自适应屏幕，两者合用
+            useWideViewPort = true
+            setSupportZoom(false)
+
         }
-        webView.webViewClient = object : WebViewClient() {
+        binding.webView.webViewClient = object : WebViewClient() {
             override fun shouldOverrideUrlLoading(view: WebView?, request: WebResourceRequest?): Boolean {
-                return true
+                return false
             }
         }
-        webView.webChromeClient = object : WebChromeClient() {
+        binding.webView.webChromeClient = object : WebChromeClient() {
             override fun onReceivedTitle(view: WebView?, title: String?) {
                 super.onReceivedTitle(view, title)
-                tvTitle.text = title
+                binding.tvTitle.text = title
             }
 
             override fun onProgressChanged(view: WebView?, newProgress: Int) {
                 super.onProgressChanged(view, newProgress)
-                if (newProgress == 100) {
-                    progressBar.visibility = View.GONE
-                } else {
-                    progressBar.progress = newProgress
-                    progressBar.visibility = View.VISIBLE
+                binding.progressBar.apply {
+                    if (newProgress == 100) {
+                        visibility = View.GONE
+                    } else {
+                        progress = newProgress
+                        visibility = View.VISIBLE
+                    }
                 }
             }
 
@@ -137,8 +149,6 @@ class MainFragment : Fragment() {
                 return true
             }
         }
-
-
     }
 
 }
